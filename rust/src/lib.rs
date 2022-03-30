@@ -6,7 +6,7 @@ use std::f64::consts::PI;
 
 pub trait Dist {
     // Fit a dist to a sample (eg with the method of moments)
-    fn from_sample(d: Vec<f64>) -> Self;
+    fn from_sample(d: &Vec<f64>) -> Self;
     fn pdf(&self, x: f64) -> f64;
     fn cdf(&self, x: f64) -> f64;
     // inverse CDF / percentile point function / quantile function
@@ -31,41 +31,39 @@ pub trait Dist {
 
 pub struct BetaDist {
     imp: Beta,
-    a: f64, // alpha
-    b: f64, // beta
-    m: Option<f64>, // mean of dist it was fit to (if applicable)
-    v: Option<f64>, // variance
+    pub a: f64, // alpha
+    pub b: f64, // beta
 }
 
 impl BetaDist {
-    fn from_parameters(a: f64, b: f64, m: Option<f64>, v: Option<f64>) -> Self {
+    pub fn from_parameters(mut a: f64, mut b: f64) -> Self {
         if a <= 0.0 || b <= 0.0 || a > 1000.0 || b > 1000.0 {
             println!("Invalid Beta parameters: alpha={}, beta={}", a, b)
         }
+        a = a.clamp(0.001, 1000.0);
+        b = b.clamp(0.001, 1000.0);
         Self {
             imp: Beta::new(a, b).unwrap(),
-            a: a.clamp(0.001, 1000.0),
-            b: b.clamp(0.001, 1000.0),
-            m, v,
+            a, b
         }
     }
     pub fn pdf(x: f64, a: f64, b: f64) -> f64 {
-        Self::from_parameters(a, b, None, None).pdf(x)
+        Self::from_parameters(a, b).pdf(x)
     }
     pub fn cdf(x: f64, a: f64, b: f64) -> f64 {
-        Self::from_parameters(a, b, None, None).cdf(x)
+        Self::from_parameters(a, b).cdf(x)
     }
     pub fn ppf(x: f64, a: f64, b: f64) -> f64 {
-        Self::from_parameters(a, b, None, None).ppf(x)
+        Self::from_parameters(a, b).ppf(x)
     }
 }
 
 impl Dist for BetaDist {
-    fn from_sample(d: Vec<f64>) -> Self {
+    fn from_sample(d: &Vec<f64>) -> Self {
         let (m, v) = d.mean_variance();
         let a = (m * (1.0 - m) / v - 1.0) * m;
         let b = (m * (1.0 - m) / v - 1.0) * (1.0 - m);
-        Self::from_parameters(a, b, Some(m), Some(v))
+        Self::from_parameters(a, b)
     }
     fn pdf(&self, x: f64) -> f64 { self.imp.pdf(x) }
     fn cdf(&self, x: f64) -> f64 { self.imp.cdf(x) }
@@ -93,7 +91,7 @@ impl CosineInterpolatedDiscreteDist {
 }
 
 impl Dist for CosineInterpolatedDiscreteDist {
-    fn from_sample(d: Vec<f64>) -> Self {
+    fn from_sample(d: &Vec<f64>) -> Self {
         let mut discrete: Vec<(f64, f64)> = Vec::with_capacity(10);
         // Count
         for p in d.iter() {

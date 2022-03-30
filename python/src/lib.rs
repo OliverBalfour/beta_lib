@@ -1,48 +1,52 @@
 
-use beta_lib::{BetaDist, CosineInterpolatedDiscreteDist, Dist};
+use beta_lib as beta;
+use beta::Dist;
 use pyo3::prelude::*;
 
-#[pyfunction]
-fn pdf(x: f64, a: f64, b: f64) -> PyResult<f64> {
-    Ok(BetaDist::pdf(x, a, b))
+#[pyclass]
+struct Beta {
+    #[pyo3(get, set)]
+    a: f64,
+    #[pyo3(get, set)]
+    b: f64,
+    dist: beta::BetaDist,
 }
 
-#[pyfunction]
-fn cdf(x: f64, a: f64, b: f64) -> PyResult<f64> {
-    Ok(BetaDist::cdf(x, a, b))
+#[pymethods]
+impl Beta {
+    #[new]
+    fn new(samples: Vec<f64>) -> Self {
+        let dist = beta::BetaDist::from_sample(&samples);
+        Self { a: dist.a, b: dist.b, dist }
+    }
+    fn pdf(&self, x: f64) -> f64 { self.dist.pdf(x) }
+    fn cdf(&self, x: f64) -> f64 { self.dist.cdf(x) }
+    fn ppf(&self, p: f64) -> f64 { self.dist.ppf(p) }
+    #[staticmethod] fn _pdf(x: f64, a: f64, b: f64) -> f64 { beta::BetaDist::from_parameters(a, b).pdf(x) }
+    #[staticmethod] fn _cdf(x: f64, a: f64, b: f64) -> f64 { beta::BetaDist::from_parameters(a, b).cdf(x) }
+    #[staticmethod] fn _ppf(p: f64, a: f64, b: f64) -> f64 { beta::BetaDist::from_parameters(a, b).ppf(p) }
 }
 
-#[pyfunction]
-fn ppf(x: f64, a: f64, b: f64) -> PyResult<f64> {
-    Ok(BetaDist::ppf(x, a, b))
+#[pyclass]
+struct CosineInterpolatedDiscrete {
+    dist: beta::CosineInterpolatedDiscreteDist,
 }
 
-#[pyfunction]
-fn cosine_pdf(d: Vec<f64>, x: f64) -> PyResult<f64> {
-    let dist = CosineInterpolatedDiscreteDist::from_sample(d);
-    Ok(dist.pdf(x))
-}
-
-#[pyfunction]
-fn cosine_cdf(d: Vec<f64>, x: f64) -> PyResult<f64> {
-    let dist = CosineInterpolatedDiscreteDist::from_sample(d);
-    Ok(dist.cdf(x))
-}
-
-#[pyfunction]
-fn cosine_ppf(d: Vec<f64>, x: f64) -> PyResult<f64> {
-    let dist = CosineInterpolatedDiscreteDist::from_sample(d);
-    Ok(dist.ppf(x))
+#[pymethods]
+impl CosineInterpolatedDiscrete {
+    #[new]
+    fn new(samples: Vec<f64>) -> Self {
+        Self { dist: beta::CosineInterpolatedDiscreteDist::from_sample(&samples) }
+    }
+    fn pdf(&self, x: f64) -> f64 { self.dist.pdf(x) }
+    fn cdf(&self, x: f64) -> f64 { self.dist.cdf(x) }
+    fn ppf(&self, p: f64) -> f64 { self.dist.ppf(p) }
 }
 
 #[pymodule]
 fn beta(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(pdf, m)?)?;
-    m.add_function(wrap_pyfunction!(cdf, m)?)?;
-    m.add_function(wrap_pyfunction!(ppf, m)?)?;
-    m.add_function(wrap_pyfunction!(cosine_pdf, m)?)?;
-    m.add_function(wrap_pyfunction!(cosine_cdf, m)?)?;
-    m.add_function(wrap_pyfunction!(cosine_ppf, m)?)?;
+    m.add_class::<Beta>()?;
+    m.add_class::<CosineInterpolatedDiscrete>()?;
     Ok(())
 }
 
