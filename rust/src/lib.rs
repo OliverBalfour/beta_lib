@@ -148,6 +148,7 @@ impl Dist for CosineInterpolatedDiscreteDist {
                 acc += (p1.1 + p2.1) / 2.0 * (p2.0 - p1.0)
             }
         }
-        acc
+        let (xn, pn) = self.discrete[self.discrete.len()-1];
+        acc + (x - xn) * pn
     }
 }
