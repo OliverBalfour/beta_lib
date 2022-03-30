@@ -1,6 +1,5 @@
 
 use beta_lib as beta;
-
 use pyo3::prelude::*;
 
 #[pyfunction]

@@ -1,0 +1,15 @@
+[package]
+name = "beta"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "beta"
+crate-type = ["cdylib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+beta_lib = { path = "../rust" }
+wasm-bindgen = "0.2.79"
+getrandom = { version = "0.2", features = ["js"] }
