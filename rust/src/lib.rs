@@ -97,24 +97,31 @@ impl Dist for CosineInterpolatedDiscreteDist {
         let mut discrete: Vec<(f64, f64)> = Vec::with_capacity(10);
         // Count
         for p in d.iter() {
+            let mut added = false;
             for i in 0..discrete.len() {
                 let (p2, c) = discrete[i];
                 if *p == p2 {
                     // If it's in this spot, increment the counter
                     discrete[i] = (*p, c + 1.0);
+                    added = true;
                     break
                 } else if *p < p2 {
                     // If we've passed where it should be, insert it there
                     discrete.insert(i, (*p, 1.0));
+                    added = true;
                     break
                 }
             }
+            if !added {
+                discrete.push((*p, 1.0))
+            }
         }
-        // Normalise
-        let n = d.len() as f64;
+        // Non-normalised distribution to normalise with cdf(1)
+        let q = Self { discrete: discrete.clone() };
+        let k = q.cdf(1.0);
         for i in 0..discrete.len() {
             let (p, c) = discrete[i];
-            discrete[i] = (p, c / n)
+            discrete[i] = (p, c / k)
         }
         Self { discrete }
     }
@@ -141,6 +148,6 @@ impl Dist for CosineInterpolatedDiscreteDist {
                 acc += (p1.1 + p2.1) / 2.0 * (p2.0 - p1.0)
             }
         }
-        0.0 // error
+        acc
     }
 }
