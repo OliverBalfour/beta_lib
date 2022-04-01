@@ -16,7 +16,14 @@ struct Beta {
 #[pymethods]
 impl Beta {
     #[new]
-    fn new(samples: Vec<f64>) -> PyResult<Self> {
+    fn new(a: f64, b: f64) -> PyResult<Self> {
+        match beta::BetaDist::from_parameters(a, b) {
+            Ok(dist) => Ok(Self { a, b, dist }),
+            Err(s) => Err(PyValueError::new_err(s))
+        }
+    }
+    #[staticmethod]
+    fn from_sample(samples: Vec<f64>) -> PyResult<Self> {
         match beta::BetaDist::from_sample(&samples) {
             Ok(dist) => Ok(Self { a: dist.a, b: dist.b, dist }),
             Err(s) => Err(PyValueError::new_err(s))
@@ -25,6 +32,9 @@ impl Beta {
     fn pdf(&self, x: f64) -> f64 { self.dist.pdf(x) }
     fn cdf(&self, x: f64) -> f64 { self.dist.cdf(x) }
     fn ppf(&self, p: f64) -> f64 { self.dist.ppf(p) }
+    fn mean(&self) -> f64 { self.dist.mean() }
+    fn mode(&self) -> Option<f64> { self.dist.mode() }
+    fn variance(&self) -> f64 { self.dist.variance() }
     #[staticmethod] fn _pdf(x: f64, a: f64, b: f64) -> f64 { beta::BetaDist::pdf(x, a, b) }
     #[staticmethod] fn _cdf(x: f64, a: f64, b: f64) -> f64 { beta::BetaDist::cdf(x, a, b) }
     #[staticmethod] fn _ppf(p: f64, a: f64, b: f64) -> f64 { beta::BetaDist::ppf(p, a, b) }
@@ -40,6 +50,10 @@ impl CosineInterpolatedDiscrete {
     #[new]
     fn new(samples: Vec<f64>) -> PyResult<Self> {
         Ok(Self { dist: beta::CosineInterpolatedDiscreteDist::from_sample(&samples).unwrap() })
+    }
+    #[staticmethod]
+    fn from_sample(samples: Vec<f64>) -> PyResult<Self> {
+        Self::new(samples)
     }
     fn pdf(&self, x: f64) -> f64 { self.dist.pdf(x) }
     fn cdf(&self, x: f64) -> f64 { self.dist.cdf(x) }

@@ -40,7 +40,7 @@ pub struct BetaDist {
 
 impl BetaDist {
     pub fn from_parameters(a: f64, b: f64) -> Result<Self, String> {
-        if a <= 0.0 || b <= 0.0 || a > 1000.0 || b > 1000.0 {
+        if a <= 0.0 || b <= 0.0 || a > 100000.0 || b > 100000.0 {
             return Err(format!("Invalid Beta parameters: alpha={}, beta={}", a, b));
         }
         Ok(Self {
@@ -57,21 +57,30 @@ impl BetaDist {
     pub fn ppf(x: f64, a: f64, b: f64) -> f64 {
         Self::from_parameters(a, b).unwrap().ppf(x)
     }
-    fn log_beta_pdf(x: f64, a: f64, b: f64) -> f64 {
+    pub fn log_beta_pdf(x: f64, a: f64, b: f64) -> f64 {
         // Beta(x|α,β) = Γ(α+β) x^(α-1) (1-x)^(β-1) / Γ(α) / Γ(β)
         // ln Beta(x|α,β) = lnΓ(α+β) + (α-1)ln(x) + (β-1)ln(1-x) - lnΓ(α) - lnΓ(β)
         ln_gamma(a+b) + (a-1.0)*f64::ln(x) + (b-1.0)*f64::ln(1.0-x) - ln_gamma(a) - ln_gamma(b)
     }
-    fn log_likelihood(d: &Vec<f64>, a: f64, b: f64) -> f64 {
-        let k = 1.0;
+    pub fn log_likelihood(d: &Vec<f64>, a: f64, b: f64) -> f64 {
+        // Regularised log likelihood
+        let k = 0.01;
         let log_betas: Vec<f64> = d.iter().map(|x| Self::log_beta_pdf(*x, a, b)).collect();
-        log_betas.mean() + k * (a*a + b*b)
+        log_betas.mean() - k * (a*a + b*b)
     }
-    fn from_sample_method_of_moments(d: &Vec<f64>) -> Result<Self, String> {
-        let (m, v) = d.mean_variance();
-        let a = (m * (1.0 - m) / v - 1.0) * m;
-        let b = (m * (1.0 - m) / v - 1.0) * (1.0 - m);
-        Self::from_parameters(a, b).map_err(|s| format!("{}, mean={}, variance={}", s, m, v))
+    pub fn mean(&self) -> f64 {
+        self.a / (self.a + self.b)
+    }
+    pub fn mode(&self) -> Option<f64> {
+        // for a, b > 1
+        if self.a > 1.0 && self.b > 1.0 {
+            return Some((self.a - 1.0) / (self.a + self.b - 2.0))
+        }
+        // bimodal or uniform (infinite modes)
+        return None
+    }
+    pub fn variance(&self) -> f64 {
+        self.a * self.b / ((self.a + self.b) * (self.a + self.b) * (self.a + self.b + 1.0))
     }
 }
 
@@ -83,10 +92,19 @@ impl Dist for BetaDist {
         // Assuming θ ~ N(0,I2), log p(θ) = k||θ||^2
         // Initial estimate for θ using the method of moments
         let (m, v) = d.mean_variance();
-        let a = ((m * (1.0 - m) / v - 1.0) * m).clamp(0.01, 100.0);
-        let b = ((m * (1.0 - m) / v - 1.0) * (1.0 - m)).clamp(0.01, 100.0);
-        // Now we maximise log likelihood
-        
+        let (bmin, bmax) = (0.01, 100.0);
+        let a = ((m * (1.0 - m) / v - 1.0) * m).clamp(bmin, bmax);
+        let b = ((m * (1.0 - m) / v - 1.0) * (1.0 - m)).clamp(bmin, bmax);
+        // // Now we minimise negative log likelihood using the Nelder-Mead method
+        // let (ab, _neg_log_likelihood) = minimize(
+        //     |args| -Self::log_likelihood(d, args[0], args[1]),  // function to minimise
+        //     vec![a, b],  // initial point
+        //     1.0,  // initial simplex size
+        //     nelder_mead::params::Params::default(),
+        //     nelder_mead::bounds::Bounds { min: vec![bmin; 2], max: vec![bmax; 2] },
+        //     100  // max iterations
+        // );
+        // a = ab[0]; b = ab[1];
         Self::from_parameters(a, b).map_err(|s| format!("{}, mean={}, variance={}", s, m, v))
     }
     fn pdf(&self, x: f64) -> f64 { self.imp.pdf(x) }
@@ -174,69 +192,4 @@ impl Dist for CosineInterpolatedDiscreteDist {
         acc + (x - xn) * pn
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Given nonlinear, continuous f : R^D->R and an initial R^D vector, find x in R^D that minimises f(x)
-// Uses the Nelder-Mead method, based on the description here: http://www.scholarpedia.org/article/Nelder-Mead_algorithm
-pub fn nelder_mead_minimise<
-    F: Fn(&[f64; D]) -> f64,
-    const D: usize,
->(f: &F, x0: &[f64; D]) -> [f64; D] {
-    // Right angle initialisation of simplex
-    let mut simplex: [[f64; D]; D] = [[0.0; D]; D];
-    simplex[0] = x0.clone();
-    for i in 1..D {
-        let mut v = x0.clone();
-        v[i] += 0.1;  // arbitrary step size
-        simplex[i] = v;
-    }
-
-    // Iteration
-    // Ordering: h is the index of the worst (f is highest) simplicial vertex; s is the 2nd worst, l is the best
-    let (mut h, mut s, mut l) = (0, 0, 0);
-    let (mut fh, mut fs, mut fl) = (std::f64::NEG_INFINITY, std::f64::NEG_INFINITY, std::f64::INFINITY);
-    let image: Vec<f64> = simplex.iter().map(f).collect();
-    for i in 0..D {
-        if fh < image[i] {
-            fs = fh; s = h;
-            fh = image[i]; h = i;
-        } else if fs < image[i] && image[i] < fh {
-            fs = image[i];
-            s = i;
-        } else if image[i] < fl {
-            fl = image[i];
-            l = i;
-        }
-    }
-    // Centroid of the worst side
-    let mut c = [0.0; D];
-    for i in 0..D {
-        if i != h {
-            for j in 0..D {
-                c[j] += simplex[i][j]
-            }
-        }
-    }
-    for j in 0..D {
-        c[j] /= D as f64
-    }
-    // Transformation
-
-    *x0
-}
-
-
-
 
