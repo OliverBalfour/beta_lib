@@ -40,7 +40,7 @@ pub struct BetaDist {
 
 impl BetaDist {
     pub fn from_parameters(a: f64, b: f64) -> Result<Self, String> {
-        if a <= 0.0 || b <= 0.0 || a > 100000.0 || b > 100000.0 {
+        if a <= 0.0 || b <= 0.0 || a > 1_000_000.0 || b > 1_000_000.0 {
             return Err(format!("Invalid Beta parameters: alpha={}, beta={}", a, b));
         }
         Ok(Self {
